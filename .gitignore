@@ -27,3 +27,5 @@ segmentation/checkpoints/checkpoint590.pt
 requirements.txt
 results.txt
 results/
+/Data
+!*.dvc
