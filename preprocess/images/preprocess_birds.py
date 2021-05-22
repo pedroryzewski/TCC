@@ -15,7 +15,7 @@ import pandas as pd
 LR_HR_RETIO = 4
 IMSIZE = 256
 LOAD_SIZE = int(IMSIZE * 76 / 64)
-BIRD_DIR = 'Data/birds'
+BIRD_DIR = 'data/birds'
 
 
 def load_filenames(data_dir):
@@ -39,7 +39,7 @@ def load_bbox(data_dir):
     #
     filename_bbox = {img_file[:-4]: [] for img_file in filenames}
     numImgs = len(filenames)
-    for i in xrange(0, numImgs):
+    for i in range(0, numImgs):
         bbox = df_bounding_boxes.iloc[i][1:].tolist()
 
         key = filenames[i][:-4]
