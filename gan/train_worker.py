@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import torch
+import numpy as np
 from torch.utils.data import DataLoader
 
 proj_root = '.'
@@ -78,7 +79,7 @@ if __name__ == '__main__':
     
     print('> Loading training data ...')
     if args.dataset == 'birds':
-        dataset = BirdsDataset(datadir, mode='train')
+        dataset = BirdsDataset(datadir, mode='train',batch=args.batch_size)
     elif args.dataset == 'flowers':
         dataset = FlowersDataset(datadir, mode='train')
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)

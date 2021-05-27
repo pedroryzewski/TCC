@@ -154,7 +154,7 @@ def train_gan(dataloader, model_folder, netG, netD, netS, netEs, netEb, args):
             segs_code = netEs(segs)    # segmentation encoding
             bkgs_code = netEb(bimages) # background image encoding
 
-            mean_var, smean_var, bmean_var, f_images, z_list = netG(txt_data, txt_len, segs_code, bkgs_code)
+            mean_var, smean_var, bmean_var, f_images, z_list = netG(epoch, txt_data, txt_len, segs_code, bkgs_code)
 
             f_images_cp = f_images.data.cuda()
 
@@ -244,6 +244,6 @@ def train_gan(dataloader, model_folder, netG, netD, netS, netEs, netEb, args):
             netEb = netEb.cuda()
 
         end_timer = time.time() - start_timer
-        print('epoch {}/{} finished [time = {}s] ...'.format(epoch, tot_epoch, end_timer))
+        print('epoch {}/{} finished [time = {}s] loss={} ...'.format(epoch, tot_epoch, end_timer,g_loss))
 
     writer.close()
