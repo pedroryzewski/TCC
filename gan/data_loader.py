@@ -11,7 +11,7 @@ import random
 from .proj_utils.torch_utils import to_binary
 
 class BirdsDataset(Dataset):
-    def __init__(self, workdir, mode='train'):
+    def __init__(self, workdir,batch, mode='train'):
 
         self.workdir = workdir
         self.mode = mode
@@ -36,8 +36,8 @@ class BirdsDataset(Dataset):
         # names
         with open(pickle_path + '/filenames.pickle', 'rb') as f:
             self.filenames = pickle.load(f)
-        
-        self.size = len(self.images)
+        #print(len(self.filenames),' ', len(self.images)) 
+        self.size = (len(self.filenames)//batch)*batch
         self.saveIDs = np.arange(self.size)
 
         # caption vectors
@@ -53,9 +53,11 @@ class BirdsDataset(Dataset):
         word_vecs = torch.FloatTensor(self.size, 10, 50, 300)
         len_descs = torch.LongTensor(self.size, 10)
         for i, filename in enumerate(filenames):
-            data = torch.load(os.path.join(caption_root + '_vec', filename + '.pth'))
-            word_vecs[i] = data['word_vec']
-            len_descs[i] = torch.LongTensor(data['len_desc'])
+            if(i < self.size):
+                #print(i,'   ',self.size)
+                data = torch.load(os.path.join(caption_root + '_vec', filename + '.pth'))
+                word_vecs[i] = data['word_vec']
+                len_descs[i] = torch.LongTensor(data['len_desc'])
         return (word_vecs, len_descs)
 
     def read_captions(self, filename, randid):

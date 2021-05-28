@@ -1,0 +1,4 @@
+pytorch torchvision torchaudio cpuonly -c pytorch
+scipy
+tensorflow
+tensorboardx

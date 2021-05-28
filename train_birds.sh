@@ -5,17 +5,17 @@
 
 # name='SEG10_BG10L1_IDTLOSS_OBJLOSS_birds'
 
-name='SEG10_BG10L1_0KL'
-device=3
+name='gtrans'
+device=0
 dataset='birds'
 CUDA_VISIBLE_DEVICES=${device} python gan/train_worker.py \
                                 --dataset $dataset \
-                                --batch_size 64 \
+                                --batch_size 2 \
                                 --model_name ${name} \
                                 --g_lr 0.0002 \
                                 --d_lr 0.0002 \
-                                --save_freq 10 \
-                                --unet_checkpoint 'segmentation/checkpoints/checkpoint590.pt' \
+                                --save_freq 1 \
+                                --unet_checkpoint 'segmentation/checkpoints/checkpoint580.pt' \
                                 # --reuse_weights \
                                 # --load_from_epoch 390
                                 # --manipulate \                             
