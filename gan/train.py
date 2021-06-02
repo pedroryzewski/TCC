@@ -9,9 +9,10 @@ from tensorboardX import SummaryWriter
 import time
 
 from .proj_utils.torch_utils import set_lr, to_numpy, roll, to_binary
+from .proj_utils.local_utils import save_images
 from gan.networks import ImgEncoder
 
-
+proj_root = '.'
 def compute_g_loss(f_logit, f_logit_c, r_labels):
     criterion  = F.mse_loss
     r_g_loss   = criterion(f_logit, r_labels)
@@ -242,6 +243,13 @@ def train_gan(dataloader, model_folder, netG, netD, netS, netEs, netEb, args):
             netG  = netG.cuda()
             netEs = netEs.cuda()
             netEb = netEb.cuda()
+            
+        vis_samples = [None for i in range(4)]
+        vis_samples[0] = to_numpy(images)[0]
+        vis_samples[1] = to_numpy(w_images)[0]
+        vis_samples[2] = to_numpy(segs)[0]
+        vis_samples[3] = to_numpy(f_images)[0]
+        save_images(vis_samples, save=True, save_path=os.path.join(proj_root , 'trans/E{}I{}.png'.format(epoch,i)), dim_ordering='th')
 
         end_timer = time.time() - start_timer
         print('epoch {}/{} finished [time = {}s] loss={} ...'.format(epoch, tot_epoch, end_timer,g_loss))

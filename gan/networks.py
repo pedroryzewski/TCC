@@ -4,7 +4,9 @@ from torch.nn import functional as F
 import h5py
 import numpy as np
 import math
-from gan.ViT_helper import trunc_normal_
+from gan.ViT_helper import trunc_normal_,DropPath
+from PIL import Image
+from gan.proj_utils.torch_utils import to_numpy
 
 #### TransGan
 
@@ -60,7 +62,7 @@ def get_attn_mask(N, w):
     return mask
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., is_mask=0):
+    def __init__(self, dim, num_heads=4, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., is_mask=0):
         super().__init__()
         self.num_heads = num_heads
         head_dim = dim // num_heads
@@ -128,12 +130,8 @@ class Block(nn.Module):
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
     def forward(self, x, epoch):
-        y = self.attn(x, epoch)
-        y = self.norm1(y)
-        x = x + self.drop_path(y)
-        y = self.norm2(x)
-        y = self.mlp(y)
-        x = x + self.drop_path(y)
+        x = x + self.drop_path(self.attn(self.norm1(x), epoch))
+        x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 
 def pixel_upsample(x, H, W):
@@ -210,13 +208,14 @@ class VecToFeatMap(nn.Module):
 
         self.out = nn.Sequential(
             nn.Linear(in_dim, out_dim),
-            nn.BatchNorm1d(out_dim)                
+            #nn.BatchNorm1d(out_dim)                
         )
     
     def forward(self, inputs):
         output = self.out(inputs)
         output = output.view(-1, self.tam, self.embed_dim)
         return output
+
 #self.l1 = nn.Linear(args.latent_dim, (self.bottom_width ** 2) * self.embed_dim)
 #x = self.l1(z).view(-1, self.bottom_width ** 2, self.embed_dim)
 class ImgEncoder(nn.Module):
@@ -279,6 +278,20 @@ class Block_scale():
         y = y.to('cpu')
         return y 
 
+def save_img(x, a, b, c):
+  nha = x.size()
+  if nha[1] != 3:
+    x = x.reshape(-1, 3, 64, 64)
+
+  img = x.permute(0,2,3,1)
+  img = img[0, :, :, 0]
+
+  img = (img + 1)/2 * 255 # img
+  save_image = np.asarray(img.cpu().detach().numpy(),dtype=np.uint8)
+  im = Image.fromarray(save_image)
+  im.save(os.path.join(proj_root , 'trans/E{}I{}N{}.png'.format(a,b,c)))
+  return img
+
 class Generator(nn.Module):
     def __init__(self, tcode_dim, scode_dim, emb_dim, hid_dim):
         """
@@ -302,7 +315,7 @@ class Generator(nn.Module):
         self.SCA = CA(scode_dim, emb_dim)
         self.BCA = CA(scode_dim, emb_dim)
         self.bottom_width = 8
-        self.embed_dim = 1536
+        self.embed_dim = 192
         self.vec_to_tensor = VecToFeatMap(384, self.bottom_width, self.embed_dim)
         cur_dim = self.embed_dim
         #self.l1 = nn.Linear(1024, cur_dim)
@@ -336,48 +349,58 @@ class Generator(nn.Module):
         self.scale_64 = nn.Sequential(
             ResnetBlock(cur_dim//4),
         )'''
-        num_heads = 4
-        mlp_ratio=4.
+        num_heads = 3
+        mlp_ratio=3.
         qkv_bias=False
         qk_scale=None
-        drop_rate=0.
-        attn_drop_rate=0.
+        drop_rate=0.1
+        attn_drop_rate=0.1
         norm_layer=nn.LayerNorm
+        drop_path_rate = 0.1
 
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, 5)]  # stochastic depth decay rule
         self.block_4 = Block(
                     dim=cur_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=0, norm_layer=norm_layer)
+                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[0], norm_layer=norm_layer)
         self.block_8 = Block(
                     dim=cur_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=0, norm_layer=norm_layer)
+                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[1], norm_layer=norm_layer)
         self.block_16 = Block(
                     dim=cur_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=0, norm_layer=norm_layer)
+                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[2], norm_layer=norm_layer)
         self.block_32 = Block(
                     dim=cur_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=0, norm_layer=norm_layer)
+                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[3], norm_layer=norm_layer)
         self.block_64 = Block(
                     dim=cur_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=0, norm_layer=norm_layer)
+                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[4], norm_layer=norm_layer)
         
-        self.scale_4 = Block_scale(cur_dim=cur_dim, div=4)
+        self.scale_4 = Block_scale(cur_dim=cur_dim, div=4,num_heads=num_heads)
         #self.scale_8 = Block_scale(cur_dim=cur_dim, div=8)
-        self.scale_16 = Block_scale(cur_dim=cur_dim, div=16)
+        self.scale_16 = Block_scale(cur_dim=cur_dim, div=16,num_heads=num_heads)
         #self.scale_32 = Block_scale(cur_dim=cur_dim, div=32)
-        self.scale_64 = Block_scale(cur_dim=cur_dim, div=64,mask=(64)**2)
+        self.scale_64 = Block_scale(cur_dim=cur_dim, div=64,num_heads=num_heads)
         
 
         self.tensor_to_img_64 = nn.Sequential(
             #nn.ReflectionPad2d(1),
-            #nn.Conv2d(cur_dim//4, 3, kernel_size=3, padding=0, bias=False),
-            #nn.Tanh()
-            nn.Conv2d(self.embed_dim//64, 3, 1, 1, 0)
+            #nn.Conv2d(24, 3, kernel_size=3, padding=1, bias=False),
+            nn.Tanh()
+            #nn.Conv2d(self.embed_dim//64, 3, 1, 1, 0)
+        )
+
+        self.to_rgb = nn.Sequential(
+            #nn.BatchNorm1d(4096),
+            nn.ReLU(),
+            # nn.Conv2d(args.gf_dim, 3, 3, 1, 1),
+            nn.Tanh()
         )
 
         self.apply(weights_init)
 
         self.txt_encoder_f = nn.GRUCell(300, 512)
         self.txt_encoder_b = nn.GRUCell(300, 512)
+        self.batata = 0
 
     def forward(self, epoch, txt_data=None, txt_len=None, seg_cond=None, bkg_cond=None, z_list=None,
         shape_noise=False, background_noise=False, vs=False):
@@ -425,53 +448,85 @@ class Generator(nn.Module):
         z_list = [z_t, z_s, z_b]
 
         z = torch.cat(z_list, dim=1)
-
+        #print(z_list)
         x = self.vec_to_tensor(z)
         #x = x.to('cpu')
         #epoch = epoch.to('cuda')
         #x = self.l1(batata).view(-1, self.bottom_width ** 2, self.embed_dim)
-        '''
-        x_4  = self.scale_4(x)
-        x_8  = F.interpolate(x_4, scale_factor=2, mode='nearest')
-        x_8  = self.scale_8(x_8)
-        x_16 = F.interpolate(x_8, scale_factor=2, mode='nearest')
-        x_16 = self.scale_16(x_16)
-        x_32 = F.interpolate(x_16, scale_factor=2, mode='nearest')
-        x_32 = self.scale_32(x_32)
-        x_64 = F.interpolate(x_32, scale_factor=2, mode='nearest')
-        x_64 = self.scale_64(x_64)
-        '''
+
         H, W = self.bottom_width, self.bottom_width
         
         x = x.to('cuda')
-        #self.block_4 = self.block_4.to('cpu')
-        #self.block_8 = self.block_8.to('cpu')
-        #self.block_16 = self.block_16.to('cpu')
-        #self.block_32 = self.block_32.to('cpu')
-        #self.block_64 = self.block_64.to('cpu')
-    
+        #print(x.shape)
+        #save_img(x, epoch, self.batata, 0)
         x = self.block_4(x,epoch)
+        #print(x.shape)
+        #save_img(x, epoch, self.batata, 1)
         x = self.block_8(x,epoch)
+        #print(x.shape)
+        #save_img(x, epoch, self.batata, 2)
         x = self.block_16(x,epoch)
+        #print(x.shape)
+        #save_img(x, epoch, self.batata, 3)
         x = self.block_32(x,epoch)
+        #print(x.shape)
+        #save_img(x, epoch, self.batata, 4)
         x = self.block_64(x,epoch)
+        #print(x.shape)
+        #save_img(x, epoch, self.batata, 5)
+        
+        #print(H," x ",W)
+        #x_4  = F.interpolate(x, scale_factor=2, mode='nearest')
+        
+        x_4, H, W = pixel_upsample(x, H, W)
+        #save_img(x_4, epoch, self.batata, 6)
+        x_4 = self.scale_4.next(x_4,epoch)
+        #save_img(x_4, epoch, self.batata, 7)
+        #print(x_4.shape)
+        
+        #print(H," x ",W)
+        #x_16  = F.interpolate(x_4, scale_factor=2, mode='nearest')
+        x_16, H, W = pixel_upsample(x_4, H, W)
+        #save_img(x_16, epoch, self.batata, 8)
+        x_16 = self.scale_16.next(x_16,epoch)
+        #save_img(x_16, epoch, self.batata, 9)
+        #print(x_16.shape)
 
-        x, H, W = pixel_upsample(x, H, W)
-        x_4 = self.scale_4.next(x,epoch)
+        #print(H," x ",W)
+        #x_64  = F.interpolate(x_16, scale_factor=2, mode='nearest')
+        
+        x_64, H, W = pixel_upsample(x_16, H, W)
+        #save_img(x_64, epoch, self.batata, 10)
+        x_64 = self.scale_64.next(x_64,epoch)
+        #save_img(x_64, epoch, self.batata, 11)
+        #print(x_64.shape)
 
-        x_4, H, W = pixel_upsample(x_4, H, W)
-        x_16 = self.scale_16.next(x_4,epoch)
-
-        x_16, H, W = pixel_upsample(x_16, H, W)
-        x_64 = self.scale_64.next(x_16,epoch)
-         
+        #print(H," x ",W) 
         #img_64 = self.tensor_to_img_64(x_64)
         x_64 = x_64.to('cuda')
-        img_64 = self.tensor_to_img_64(x_64.permute(0, 2, 1).view(-1, self.embed_dim//64, H, W))
+        #x_64 = self.to_rgb(x_64)
+        #print(x_64.shape)
+        img_64 = self.tensor_to_img_64(x_64.permute(0, 2, 1).view(-1, self.embed_dim//64, 64, 64))
+        #save_img(img_64, epoch, self.batata, 12)
+        #print(img_64.shape)
+        #print(img_64[0,0,63,:])
+      
+        #np.savetxt(os.path.join(proj_root , 'trans/{}_41.npy'.format(self.batata)), to_numpy(x_4_1)[0], fmt='%1.4e', delimiter=',')
+ 
+        #np.savetxt(os.path.join(proj_root , 'trans/{}_42.npy'.format(self.batata)), to_numpy(x_4_2)[0], fmt='%1.4e', delimiter=',')
+       
+        # np.savetxt(os.path.join(proj_root , 'trans/{}_43.npy'.format(self.batata)), to_numpy(x_4_3)[0], fmt='%1.4e', delimiter=',')
+      
+        # np.savetxt(os.path.join(proj_root , 'trans/{}_641.npy'.format(self.batata)), to_numpy(x_64_1)[0], fmt='%1.4e', delimiter=',')
+      
+        # np.savetxt(os.path.join(proj_root , 'trans/{}_642.npy'.format(self.batata)), to_numpy(x_64_2)[0], fmt='%1.4e', delimiter=',')
+        
+        # np.savetxt(os.path.join(proj_root , 'trans/{}_643.npy'.format(self.batata)), to_numpy(x_64_3)[0], fmt='%1.4e', delimiter=',')     
 
         out.append(img_64)
         out.append(z_list)
-        # print('ok')
+        #print('############################################    ok   ########################################################')
+        self.batata += 1
         return out
 
 class Discriminator(nn.Module):
