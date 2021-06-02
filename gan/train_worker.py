@@ -9,6 +9,7 @@ proj_root = '.'
 sys.path.insert(0, proj_root)
 data_root = os.path.join(proj_root, 'data')
 model_root = os.path.join(proj_root, 'models')
+bpe = os.path.join(proj_root, 'dalle/cub200_bpe.json')
 
 from gan.data_loader import BirdsDataset
 from gan.data_loader_flowers import FlowersDataset
@@ -19,7 +20,10 @@ from segmentation.train import Unet
 
 from gan.train import train_gan
 
-
+from gan.train import train_gan
+from dalle.dalle import DALLE
+from dalle import VQGanVAE1024
+s
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Gans')
 
@@ -61,25 +65,36 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+
+if __name__ == '__main__':
     # NNs
-    netG   = Generator(tcode_dim=512, scode_dim=args.scode_dim, emb_dim=args.emb_dim, hid_dim=128)
-    netD   = Discriminator()
+    vae_klass = VQGanVAE1024
+    vae = vae_klass()
+    dalle_params = dict(
+    num_text_tokens=7800,
+    text_seq_len=256,
+    dim=256,
+    depth=8,
+    heads=8,
+    dim_head=64,
+    reversible=0,
+    attn_types=('full', 'axial_row', 'axial_col', 'conv_like'),
+    )
+    netG = DALLE(vae=vae, **dalle_params)
+    #netG   = Generator(tcode_dim=512, scode_dim=args.scode_dim, emb_dim=args.emb_dim, hid_dim=128)
+    netD   = Discriminator(256,num_text_token=7800,text_seq_len=256)
     netS   = Unet()
-    netEs  = ImgEncoder(num_chan=1, out_dim=args.scode_dim)
-    netEb  = ImgEncoder(num_chan=3, out_dim=args.scode_dim)
 
     netD  = netD.cuda()
     netG  = netG.cuda()
     netS  = netS.cuda()
-    netEs = netEs.cuda()
-    netEb = netEb.cuda()
 
     data_name = args.dataset
     datadir = os.path.join(data_root, data_name)
     
     print('> Loading training data ...')
     if args.dataset == 'birds':
-        dataset = BirdsDataset(datadir, mode='train',batch=args.batch_size)
+        dataset = BirdsDataset(datadir,bpe,batch=args.batch_size, mode='train')
     elif args.dataset == 'flowers':
         dataset = FlowersDataset(datadir, mode='train')
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
@@ -93,4 +108,4 @@ if __name__ == '__main__':
 
     print('> Start training ...')
     print('>> Run tensorboard --logdir models/')
-    train_gan(dataloader, model_folder, netG, netD, netS, netEs, netEb, args)
+    train_gan(dataloader, model_folder, netG, netD, netS, args)
