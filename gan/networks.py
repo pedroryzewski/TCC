@@ -206,6 +206,9 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.eps = 1e-7
 
+        self.num_text_token = num_text_token
+        self.text_seq_len = text_seq_len
+       
         self.encoder_1 = nn.Sequential(
             nn.Conv2d(3, 128, 4, 2, padding=1),
             nn.LeakyReLU(0.2, inplace=True),
@@ -271,11 +274,11 @@ class Discriminator(nn.Module):
           nn.Linear(256,128),
           nn.MaxPool1d(4),
           nn.LeakyReLU(0.2, inplace=True), 
-          nn.Conv1d(256,512,4),
-          nn.BatchNorm1d(512),
+          nn.Conv1d(80,256,3),
+          nn.BatchNorm1d(256),
           nn.MaxPool1d(4),
           nn.LeakyReLU(0.2, inplace=True), 
-          nn.Conv1d(512,512,4),
+          nn.Conv1d(256,512,4),
           nn.MaxPool1d(4),
           nn.LeakyReLU(0.2, inplace=True)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
         )
@@ -301,8 +304,9 @@ class Discriminator(nn.Module):
       
         D = self.classifier(img_feat_3).squeeze()
 
-        num_text_tokens = 8000
-        text_seq_len = 256
+        num_text_tokens = self.num_text_token
+        text_seq_len = self.text_seq_len
+        
 
         text_range = torch.arange(text_seq_len, device = text.device) + (num_text_tokens - text_seq_len)
         text = torch.where(text == 0, text_range, text)
@@ -314,12 +318,12 @@ class Discriminator(nn.Module):
         tokens += self.text_pos_emb(torch.arange(text.shape[1], device = text.device))
         #print(tokens)
         txt = self.text_transformer(tokens)
-        #print(txt)
+        #print(txt.shape)
         hidden = self.text_process(txt)
-        #print("hidden:  ",hidden)
+        #print("hidden:  ",hidden.shape)
         hidden = hidden.unsqueeze(-1)
-        #print("hidden:  ",hidden)
-        #print("Img_fe:  ",img_feat_4)
+        #print("hidden:  ",hidden.shape)
+        #print("Img_fe:  ",img_feat_4.shape)
         concat = torch.cat((img_feat_4,hidden),-1).squeeze()
         #print(concat)
         T = self.text_classifier(concat).squeeze()

@@ -83,6 +83,15 @@ def train_gan(dataloader, model_folder, netG, netD, netS, args):
     
     # --- load model from  checkpoint ---
     netS.load_state_dict(torch.load(args.unet_checkpoint))
+
+    g_load = torch.load(args.dalle, map_location='cpu')
+    gkeys = g_load['dalle']
+    for k in list(gkeys):
+        print(k)
+        if k.split('.')[0]=='transformer':
+            gkeys[k[:30]+'fn.'+k[30:]] = gkeys.pop(k)
+    netG.load_state_dict(gkeys, strict=False)
+
     if args.reuse_weights:
         G_weightspath = os.path.join(
             model_folder, 'G_epoch{}.pth'.format(args.load_from_epoch))
@@ -225,19 +234,19 @@ def train_gan(dataloader, model_folder, netG, netD, netS, args):
 
             netG  = netG.cpu()
             netD  = netD.cpu()
-            netEs = netEs.cpu()
-            netEb = netEb.cpu()
+            #netEs = netEs.cpu()
+            #netEb = netEb.cpu()
 
             torch.save(netD.state_dict(),  os.path.join(model_folder, 'D_epoch{}.pth'.format(epoch)))
             torch.save(netG.state_dict(),  os.path.join(model_folder, 'G_epoch{}.pth'.format(epoch)))
-            torch.save(netEs.state_dict(), os.path.join(model_folder, 'Es_epoch{}.pth'.format(epoch)))
-            torch.save(netEb.state_dict(), os.path.join(model_folder, 'Eb_epoch{}.pth'.format(epoch)))
+            #torch.save(netEs.state_dict(), os.path.join(model_folder, 'Es_epoch{}.pth'.format(epoch)))
+            #torch.save(netEb.state_dict(), os.path.join(model_folder, 'Eb_epoch{}.pth'.format(epoch)))
             
             print('save weights at {}'.format(model_folder))
             netD  = netD.cuda()
             netG  = netG.cuda()
-            netEs = netEs.cuda()
-            netEb = netEb.cuda()
+            #netEs = netEs.cuda()
+            # netEb = netEb.cuda()
         
         vis_samples = [None for i in range(4)]
         vis_samples[0] = to_numpy(images)[0]
@@ -245,7 +254,7 @@ def train_gan(dataloader, model_folder, netG, netD, netS, args):
         vis_samples[2] = to_numpy(segs)[0]
         vis_samples[3] = to_numpy(f_images)[0]
         print('Saving Image')
-        save_images(vis_samples, save=True, save_path=os.path.join(proj_root , 'imgs/E{}I{}.png'.format(epoch,i)), dim_ordering='th')
+        save_images(vis_samples, save=True, save_path=os.path.join(proj_root , 'imgs2/E{}I{}.png'.format(epoch,i)), dim_ordering='th')
         
         end_timer = time.time() - start_timer
         print('epoch {}/{} finished [time = {}s] loss={} ...'.format(epoch, tot_epoch, end_timer, g_loss))

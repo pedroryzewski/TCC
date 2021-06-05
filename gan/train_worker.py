@@ -23,7 +23,7 @@ from gan.train import train_gan
 from gan.train import train_gan
 from dalle.dalle import DALLE
 from dalle import VQGanVAE1024
-s
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Gans')
 
@@ -54,6 +54,8 @@ if __name__ == '__main__':
                         help='Consistency module coefficient.')
     parser.add_argument('--unet_checkpoint', type=str, default='', 
                         help='Unet checkpoint')
+    parser.add_argument('--dalle', type=str, default='', 
+                        help='Dalle checkpoint')
     parser.add_argument('--emb_dim', type=int, default=128, metavar='N',
                         help='Text and segmentation embeddim dim.')
     parser.add_argument('--n_plots', type=int, default=8,
@@ -71,8 +73,8 @@ if __name__ == '__main__':
     vae_klass = VQGanVAE1024
     vae = vae_klass()
     dalle_params = dict(
-    num_text_tokens=7800,
-    text_seq_len=256,
+    num_text_tokens=7720,
+    text_seq_len=80,
     dim=256,
     depth=8,
     heads=8,
@@ -82,7 +84,7 @@ if __name__ == '__main__':
     )
     netG = DALLE(vae=vae, **dalle_params)
     #netG   = Generator(tcode_dim=512, scode_dim=args.scode_dim, emb_dim=args.emb_dim, hid_dim=128)
-    netD   = Discriminator(256,num_text_token=7800,text_seq_len=256)
+    netD   = Discriminator(256,num_text_token=7720,text_seq_len=80)
     netS   = Unet()
 
     netD  = netD.cuda()

@@ -46,12 +46,15 @@ def eval_decorator(fn):
 
 # sampling helpers
 
-def top_k(logits, thres = 0.5):
+def top_k(logits, thres = 0.5, full = False):
     num_logits = logits.shape[-1]
     k = max(int((1 - thres) * num_logits), 1)
     val, ind = torch.topk(logits, k)
     probs = torch.full_like(logits, float('-inf'))
-    probs.scatter_(1, ind, val)
+    if full == False:
+        probs.scatter_(1, ind, val)
+    else:
+        probs.scatter_(2, ind, val)
     return probs
 
 # discrete vae class
@@ -398,7 +401,8 @@ class DALLE(nn.Module):
         device, total_seq_len = text.device, self.total_seq_len
 
         # make sure padding in text tokens get unique padding token id
-
+        #print("tipo texto cru: ",text.shape)
+        #print(text)
         text_range = torch.arange(self.text_seq_len, device = device) + (self.num_text_tokens - self.text_seq_len)
         text = torch.where(text == 0, text_range, text)
 
@@ -407,9 +411,12 @@ class DALLE(nn.Module):
         #tokens = text
         tokens = self.text_emb(text)
         tokens += self.text_pos_emb(torch.arange(text.shape[1], device = device))# shape devia ter [1]
-
+        
+        #print("Texto entrando no modelo quase: ", tokens.shape)
+        #print(tokens)
+        
         seq_len = tokens.shape[1]
-
+        #print("imgem cru: ",image.shape)
         if exists(image) and not is_empty(image):
             is_raw_image = len(image.shape) == 4
 
@@ -425,17 +432,21 @@ class DALLE(nn.Module):
             #print(image_emb.shape)
             image_emb += self.image_pos_emb(image_emb)
             #print(image_emb.shape)
+            
+            #print("imagem editada: ",image_emb.shape)
+            #print(image_emb)
+            
             tokens = torch.cat((tokens, image_emb), dim = 1)
 
             seq_len += image_len
-
+        #print("imagem + texto: ", tokens.shape)
         # when training, if the length exceeds the total text + image length
         # remove the last token, since it needs not to be trained
 
         if tokens.shape[1] > total_seq_len:
             seq_len -= 1
             tokens = tokens[:, :-1]
-
+        #print("imagem+texto antes de entra na transformer", tokens.shape)
         out = self.transformer(tokens)
         logits = self.to_logits(out)
 
@@ -476,17 +487,15 @@ class DALLE(nn.Module):
 
         text = text[:, :text_seq_len] # make sure text is within bounds
         out = text
-        print(img.shape)
-        print(out.shape)
 
+        #### Original 
         if exists(img):
             image_size = vae.image_size
-            #assert img.shape[1] == 3 and img.shape[2] == image_size and img.shape[3] == image_size, f'input image must have the correct image size {image_size}'
+            assert img.shape[1] == 3 and img.shape[2] == image_size and img.shape[3] == image_size, f'input image must have the correct image size {image_size}'
 
             indices = vae.get_codebook_indices(img)
             num_img_tokens = default(num_init_img_tokens, int(0.4375 * image_seq_len))  # OpenAI used 14 * 32 initial tokens to prime
             assert num_img_tokens < image_seq_len, 'number of initial image tokens for priming must be less than the total image token sequence length'
-
             indices = indices[:, :num_img_tokens]
             out = torch.cat((out, indices), dim = -1)
 
@@ -494,22 +503,53 @@ class DALLE(nn.Module):
             is_image = cur_len >= text_seq_len
 
             text, image = out[:, :text_seq_len], out[:, text_seq_len:]
-
-            logits = self.process(text, image, mask = mask)[:, -1, :]
-
-            filtered_logits = top_k(logits, thres = filter_thres)
+            logits = self.process(text, image, mask = mask)
+            logits = logits[:, -1, :]
+            
+            filtered_logits = top_k(logits, thres = filter_thres, full=False)   ## TODO erro aqui porra
             probs = F.softmax(filtered_logits / temperature, dim = -1)
             sample = torch.multinomial(probs, 1)
-
-            sample -= (num_text_tokens if is_image else 0) # offset sampled token if it is an image token, since logit space is composed of text and then image tokens
-            out = torch.cat((out, sample), dim=-1)
-
+            sample -= (num_text_tokens if is_image else 0)# if is_image else 0) # offset sampled token if it is an image token, since logit space is composed of text and then image tokens
             if out.shape[1] <= text_seq_len:
                 mask = F.pad(mask, (0, 1), value = True)
+            out = torch.cat((out, sample), dim=-1)
+        #### Original
+        '''#### Full 
+        if exists(img):
+            image_size = vae.image_size
+            assert img.shape[1] == 3 and img.shape[2] == image_size and img.shape[3] == image_size, f'input image must have the correct image size {image_size}'
 
+            indices = vae.get_codebook_indices(img)
+            indices = indices[:, :255]
+            out = torch.cat((out, indices), dim = -1)
+
+        text, image = out[:, :text_seq_len], out[:, text_seq_len:]
+        logits = self.process(text, image, mask = mask)
+            
+        filtered_logits = top_k(logits, thres = filter_thres, full=True)   ## TODO erro aqui porra
+        probs = F.softmax(filtered_logits / temperature, dim = -1)
+        for i, p in enumerate(probs):
+            if i == 0:
+                sample = torch.multinomial(p, 1)
+            else:
+                if i == 1:
+                    sample = torch.stack((sample, torch.multinomial(p, 1)),dim = 0)
+                else:
+                    sample = torch.cat((sample, torch.multinomial(p, 1).unsqueeze(0)),dim = 0)
+        sample -= num_text_tokens# if is_image else 0) # offset sampled token if it is an image token, since logit space is composed of text and then image tokens
+        print("out:",out.shape)
+        print("sample:",sample.shape)
+        out = torch.cat((out, sample.squeeze()), dim=1)
+        '''#### Full   
+            
+
+        #print('$$$$$$$$$$$$$$$$$$$$FOIIIIII$$$$$$$$$$$$$$$$$$$$$$$$$$$$4')
+        #print('$$$$$$$$$$$$$$$$$$$$FOIIIIII$$$$$$$$$$$$$$$$$$$$$$$$$$$$4')
         text_seq = out[:, :text_seq_len]
 
         img_seq = out[:, -image_seq_len:]
+        #print("img seq ", img_seq.shape)
+
         images = vae.decode(img_seq)
 
         #if exists(clip):
