@@ -7,19 +7,20 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 import random
+from tokenizers import Tokenizer
 
 from .proj_utils.torch_utils import to_binary
 
 class BirdsDataset(Dataset):
-    def __init__(self, workdir,batch, mode='train'):
+    def __init__(self, workdir, bpe, batch, mode='train'):
 
         self.workdir = workdir
         self.mode = mode
 
-        self.imsize = 64
+        self.imsize =256
 
-        self.image_filename = '/76images.pickle'
-        self.segs_filename = '/76segmentations.pickle'
+        self.image_filename = '/304images.pickle'
+        self.segs_filename = '/304segmentations.pickle'
 
         pickle_path = os.path.join(self.workdir, self.mode)
 
@@ -48,6 +49,22 @@ class BirdsDataset(Dataset):
         with open(pickle_path + '/class_info.pickle', 'rb') as f:
             class_id = pickle.load(f, encoding="bytes")
             self.class_id = np.array(class_id)
+        
+        self.tokenizer = Tokenizer.from_file(bpe)
+        
+    def tokenize_text(self, txt):
+        token_list = []
+        sot_token = self.tokenizer.encode("<|startoftext|>").ids[0]
+        eot_token = self.tokenizer.encode("<|endoftext|>").ids[0]
+        #for txt in input_text:
+        codes = [0] * 256
+        text_token = self.tokenizer.encode(txt).ids
+        tokens = [sot_token] + text_token + [eot_token]
+        codes[:len(tokens)] = tokens
+        caption_token = torch.LongTensor(codes).cuda()
+        #token_list.append(caption_token)
+        text = caption_token #torch.stack(caption_token)
+        return text
 
     def load_caption_vecs(self, caption_root, filenames):
         word_vecs = torch.FloatTensor(self.size, 10, 50, 300)
@@ -70,7 +87,7 @@ class BirdsDataset(Dataset):
         if self.mode == 'train':
             transform = transforms.Compose([
                 transforms.ToPILImage(),
-                transforms.RandomCrop(64),
+                transforms.RandomCrop(256),
                 transforms.RandomHorizontalFlip(p=0.5),
                 transforms.ToTensor()
             ])
@@ -78,7 +95,7 @@ class BirdsDataset(Dataset):
         elif self.mode == 'test':
             transform = transforms.Compose([
                 transforms.ToPILImage(),
-                transforms.CenterCrop(64),
+                transforms.CenterCrop(256),
                 transforms.ToTensor()
             ])
             return transform(image)
@@ -116,8 +133,8 @@ class BirdsDataset(Dataset):
         word_vec = self.caption_vecs[0][index][randid]
         len_desc = self.caption_vecs[1][index][randid]
         raw_captions = self.read_captions(filename, randid)
-
-        data = [image, w_image, seg, word_vec, len_desc, raw_captions]
+        token = self.tokenize_text(raw_captions)
+        data = [image, w_image, seg, word_vec, len_desc, raw_captions,token]
 
         if self.mode == 'test':
             data.append(self.saveIDs[index])
