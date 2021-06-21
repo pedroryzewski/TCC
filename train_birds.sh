@@ -10,13 +10,13 @@ device=0
 dataset='birds'
 CUDA_VISIBLE_DEVICES=${device} python gan/train_worker.py \
                                 --dataset $dataset \
-                                --batch_size 8 \
+                                --batch_size  4 \
                                 --model_name ${name} \
                                 --g_lr 0.0002 \
                                 --d_lr 0.0002 \
-                                --save_freq 10 \
+                                --save_freq 1 \
                                 --unet_checkpoint 'segmentation/checkpoints/checkpoint580.pt' \
-                                --dalle 'model_untrained.pth'
-                                # --reuse_weights \
-                                # --load_from_epoch 390
+                                --dalle 'model_untrained.pth' \
+                                --reuse_weights \
+                                --load_from_epoch 7
                                 # --manipulate \                             

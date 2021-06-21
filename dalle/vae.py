@@ -174,9 +174,9 @@ class VQGanVAE1024(nn.Module):
         return rearrange(indices, '(b n) () -> b n', b = b)
 
     def decode(self, img_seq):
-        b, n = img_seq.shape
-        one_hot_indices = F.one_hot(img_seq, num_classes = self.num_tokens).float()
-        z = (one_hot_indices @ self.model.quantize.embedding.weight)
+        b, n, x = img_seq.shape
+        #one_hot_indices = F.one_hot(img_seq, num_classes = self.num_tokens).float()
+        z = (img_seq @ self.model.quantize.embedding.weight)
 
         z = rearrange(z, 'b (h w) c -> b c h w', h = int(sqrt(n)))
         img = self.model.decode(z)

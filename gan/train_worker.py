@@ -13,7 +13,6 @@ bpe = os.path.join(proj_root, 'dalle/cub200_bpe.json')
 
 from gan.data_loader import BirdsDataset
 from gan.data_loader_flowers import FlowersDataset
-from gan.networks import Generator
 from gan.networks import Discriminator
 from gan.networks import ImgEncoder
 from segmentation.train import Unet
@@ -81,15 +80,18 @@ if __name__ == '__main__':
     dim_head=64,
     reversible=0,
     attn_types=('full', 'axial_row', 'axial_col', 'conv_like'),
+    batch=args.batch_size,
     )
     netG = DALLE(vae=vae, **dalle_params)
     #netG   = Generator(tcode_dim=512, scode_dim=args.scode_dim, emb_dim=args.emb_dim, hid_dim=128)
     netD   = Discriminator(256,num_text_token=7720,text_seq_len=80)
     netS   = Unet()
+    netEs  = ImgEncoder(num_chan=1, out_dim=256)
 
     netD  = netD.cuda()
     netG  = netG.cuda()
     netS  = netS.cuda()
+    netEs  = netEs.cuda()
 
     data_name = args.dataset
     datadir = os.path.join(data_root, data_name)
@@ -110,4 +112,4 @@ if __name__ == '__main__':
 
     print('> Start training ...')
     print('>> Run tensorboard --logdir models/')
-    train_gan(dataloader, model_folder, netG, netD, netS, args)
+    train_gan(dataloader, model_folder, netG, netD, netS, netEs, args)
