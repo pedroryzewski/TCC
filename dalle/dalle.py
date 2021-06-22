@@ -207,12 +207,11 @@ class DALLE(nn.Module):
 
         # add <bos>
         text = F.pad(text, (1, 0), value = 0)
-        #tokens = text
         tokens = self.text_emb(text)
         tokens += self.text_pos_emb(torch.arange(text.shape[1], device = device))# shape devia ter [1]
         tokens = torch.cat((tokens,segs), dim=1)
         seq_len = tokens.shape[1]
-        #print("imgem cru: ",image.shape)
+
         if exists(image) and not is_empty(image):
             is_raw_image = len(image.shape) == 4
 
@@ -223,37 +222,28 @@ class DALLE(nn.Module):
                 image = self.vae.get_codebook_indices(image)
 
             image_len = image.shape[1]
-            #print(image.shape)
+
             image_emb = self.image_emb(image)
-            #print(image_emb.shape)
             image_emb += self.image_pos_emb(image_emb)
-            #print(image_emb.shape)
-            
-            #print("imagem editada: ",image_emb.shape)
-            #print(image_emb)
             
             tokens = torch.cat((tokens, image_emb), dim = 1)
 
             seq_len += image_len
-        #print("imagem + texto: ", tokens.shape)
+
         # when training, if the length exceeds the total text + image length
         # remove the last token, since it needs not to be trained
 
         if tokens.shape[1] > total_seq_len:
             seq_len -= 1
             tokens = tokens[:, :-1]
-        #print("imagem+texto antes de entra na transformer", tokens.shape)
+
         out = self.transformer(tokens)
         logits = self.to_logits(out)
 
         # mask logits to make sure text predicts text (except last token), and image predicts image
 
-        #print('logits shape? ',logits.shape)
         logits_mask = self.logits_mask[:, :seq_len]
-        #print('logits mask shape? ', logits_mask.shape)
-        #print('logits mask? ', logits_mask)
         max_neg_value = -torch.finfo(logits.dtype).max
-        #print(logits)
         logits.masked_fill_(logits_mask, max_neg_value)
 
         return logits

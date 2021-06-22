@@ -77,7 +77,7 @@ def train_gan(dataloader, model_folder, netG, netD, netS, netEs, args):
 
     ''' configure optimizers '''
     optimizerD = optim.Adam(netD.parameters(), lr=d_lr, betas=(0.5, 0.999))
-    paramsG = list(netG.parameters())# + list(netG.dalle.parameters)#+list(netEs.parameters())+list(netEb.parameters())
+    paramsG = list(netG.parameters()) + list(netEs.parameters())#list(netEb.parameters())
 
     optimizerG = optim.Adam(paramsG, lr=g_lr, betas=(0.5, 0.999))
 
@@ -87,22 +87,18 @@ def train_gan(dataloader, model_folder, netG, netD, netS, netEs, args):
     # --- load model from  checkpoint ---
     netS.load_state_dict(torch.load(args.unet_checkpoint))
     for p in netS.parameters(): p.requires_grad = False  # to avoid computation
-    #g_load = torch.load(args.dalle, map_location='cpu')
-    #gkeys = g_load['dalle']
-    #for k in list(gkeys):
-    #    print(k)
-    #    if k.split('.')[0]=='transformer':
-    #        gkeys[k[:30]+'fn.'+k[30:]] = gkeys.pop(k)
-    #netG.load_state_dict(gkeys, strict=False)
 
     if args.reuse_weights:
         print('loading weigths from {} epoch'.format(args.load_from_epoch))
         G_weightspath = os.path.join(
             model_folder, 'G_epoch{}.pth'.format(args.load_from_epoch))
+        Es_weightspath = os.path.join(
+            model_folder, 'Es_epoch{}.pth'.format(args.load_from_epoch))
         D_weightspath = os.path.join(
             model_folder, 'D_epoch{}.pth'.format(args.load_from_epoch))
 
         netG.load_state_dict(torch.load(G_weightspath))
+        netEs.load_state_dict(torch.load(Es_weightspath))
         netD.load_state_dict(torch.load(D_weightspath))
 
         start_epoch = args.load_from_epoch + 1
@@ -156,21 +152,13 @@ def train_gan(dataloader, model_folder, netG, netD, netS, netEs, args):
             
             segs_code = netEs(segs)
             f_images, smean_var = netG(token, bimages, segs_code)
-            #f_images = netG(token, txt_len, segs, bimages)
-            #print(f_images.shape)
-            #print("Discriminador: ", i)
+
             f_images_cp = f_images.data.cuda()
-            #print(token.shape)
+
             r_logit, r_logit_c = netD(images,   token, txt_len)
             _      , w_logit_c = netD(w_images, token, txt_len)
             f_logit, _         = netD(f_images_cp, token, txt_len)
-            #print("logits: ", f_logit)
-            #print('r_logit',r_logit)
-            #print('r_logit_c',r_logit_c) 
-            #print('w_logit_c',w_logit_c)
-            #print('f_logit',f_logit) 
-            #print('r_labels',r_labels)
-            #print('f_labels',f_labels)
+
             d_adv_loss = compute_d_loss(r_logit, r_logit_c, 
                                         w_logit_c, f_logit, 
                                         r_labels, f_labels)

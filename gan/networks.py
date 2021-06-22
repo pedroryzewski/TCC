@@ -201,13 +201,11 @@ class Discriminator(nn.Module):
         u, m, mask = self._encode_txt(tokens, txt_len)
         
         att_txt = (u * m.unsqueeze(0)).sum(-1)
-        for batata in att_txt[1]:
-            #for bat in batata:
-            #for ba in bat:
-            print(batata)
+        #for batata in att_txt[1]:
+        #    print(batata)
 
-        att_txt_exp = att_txt.exp() * mask.squeeze(-1)
-        att_txt = (att_txt_exp / att_txt_exp.sum(0, keepdim=True))
+        att_txt_abs = att_txt.abs() * mask.squeeze(-1)
+        att_txt = (att_txt_abs / att_txt_abs.sum(0, keepdim=True))
 
         weight = self.gen_weight(u).permute(2, 1, 0)
 
