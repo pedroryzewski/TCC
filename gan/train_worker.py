@@ -4,6 +4,7 @@ import sys
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
+from pytorchcv.model_provider import get_model as ptcv_get_model
 
 proj_root = '.'
 sys.path.insert(0, proj_root)
@@ -83,8 +84,11 @@ if __name__ == '__main__':
     batch=args.batch_size,
     )
     netG = DALLE(vae=vae, **dalle_params)
-    #netG   = Generator(tcode_dim=512, scode_dim=args.scode_dim, emb_dim=args.emb_dim, hid_dim=128)
-    netD   = Discriminator(256,num_text_token=7720,text_seq_len=80)
+    
+    netD = ptcv_get_model("mobilenet_w1_cub", pretrained=True)
+    netD = torch.nn.Sequential(*(list(netD.children())[:-1]))
+    #netD   = Discriminator(256,num_text_token=7720,text_seq_len=80)
+
     netS   = Unet()
     netEs  = ImgEncoder(num_chan=1, out_dim=256)
 

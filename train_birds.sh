@@ -12,11 +12,11 @@ CUDA_VISIBLE_DEVICES=${device} python gan/train_worker.py \
                                 --dataset $dataset \
                                 --batch_size  4 \
                                 --model_name ${name} \
-                                --g_lr 0.0002 \
+                                --g_lr 0.00045 \
                                 --d_lr 0.0002 \
                                 --save_freq 10 \
                                 --unet_checkpoint 'segmentation/checkpoints/checkpoint580.pt' \
                                 --dalle 'model_untrained.pth' \
-                                --reuse_weights \
-                                --load_from_epoch 1
+                                #--reuse_weights \
+                                #--load_from_epoch 10
                                 # --manipulate \                             
